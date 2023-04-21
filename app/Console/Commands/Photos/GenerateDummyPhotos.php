@@ -91,13 +91,11 @@ class GenerateDummyPhotos extends Command
                 'lon' => $lon,
                 'model' => "iPhone 5",
                 'filename' => "dummy.png",
-                'datetime' => now()->addDays(random_int(0, 200)),
+                'datetime' => "2021-06-04 16:27:37",
                 'verified' => 2,
                 'verification' => 1,
                 'remaining' => 1,
                 'geohash' => \GeoHash::encode($lat, $lon),
-                'created_at' => now()->addDays(random_int(0, 200)),
-                'updated_at' => now()->addDays(random_int(0, 200)),
             ];
 
             $bar->advance();

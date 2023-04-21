@@ -24,6 +24,7 @@ class AddTags implements ShouldQueue
     public $userId;
     public $photoId;
     public $tags;
+    public $pickedUp;
     public $customTags;
 
     /**
@@ -33,12 +34,14 @@ class AddTags implements ShouldQueue
      * @param $photoId
      * @param $tags
      * @param $customTags
+     * @param $pickedUp
      */
-    public function __construct ($userId, $photoId, $tags, $customTags)
+    public function __construct ($userId, $photoId, $tags, $customTags, $pickedUp)
     {
         $this->userId = $userId;
         $this->photoId = $photoId;
         $this->tags = $tags;
+        $this->pickedUp = $pickedUp;
         $this->customTags = $customTags;
     }
 
@@ -49,33 +52,17 @@ class AddTags implements ShouldQueue
      */
     public function handle ()
     {
-        $litterTotals['all'] = 0;
-        $litterTotals['litter'] = 0;
-        $customTagsTotals = 0;
-
         $user = User::find($this->userId);
+
         $photo = Photo::find($this->photoId);
 
-        if ($this->tags)
-        {
-            $tags = (gettype($this->tags) === 'string')
-                ? json_decode($this->tags, true)
-                : $this->tags;
+        /** @var AddCustomTagsToPhotoAction $addCustomTagsAction */
+        $addCustomTagsAction = app(AddCustomTagsToPhotoAction::class);
+        $customTagsTotals = $addCustomTagsAction->run($photo, $this->customTags);
 
-            $addTagsAction = app(AddTagsToPhotoAction::class);
-            $litterTotals = $addTagsAction->run($photo, $tags);
-        }
-
-        if ($this->customTags && $this->customTags !== "undefined")
-        {
-            $addCustomTagsAction = app(AddCustomTagsToPhotoAction::class);
-
-            $customTags = (gettype($this->customTags) === 'string')
-                ? json_decode($this->customTags, true)
-                : $this->customTags;
-
-            $customTagsTotals = $addCustomTagsAction->run($photo, $customTags);
-        }
+        /** @var AddTagsToPhotoAction $addTagsAction */
+        $addTagsAction = app(AddTagsToPhotoAction::class);
+        $litterTotals = $addTagsAction->run($photo, $this->tags);
 
         $user->xp += $litterTotals['all'] + $customTagsTotals;
         $user->save();
@@ -85,6 +72,7 @@ class AddTags implements ShouldQueue
         $updateLeaderboardsAction->run($photo, $user->id, $litterTotals['all'] + $customTagsTotals);
 
         $photo->total_litter = $litterTotals['litter'];
+        $photo->remaining = $this->isLitterRemaining($user);
 
         if (!$user->is_trusted)
         {
@@ -101,5 +89,16 @@ class AddTags implements ShouldQueue
         }
 
         $photo->save();
+    }
+
+    /**
+     * @param $user
+     * @return bool
+     */
+    protected function isLitterRemaining($user): bool
+    {
+        return is_null($this->pickedUp)
+            ? !$user->picked_up
+            : !$this->pickedUp;
     }
 }

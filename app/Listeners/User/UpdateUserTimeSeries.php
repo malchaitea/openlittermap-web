@@ -7,7 +7,6 @@ use App\Models\User\User;
 use Carbon\Carbon;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\Redis;
 
 class UpdateUserTimeSeries implements ShouldQueue
 {
@@ -21,8 +20,25 @@ class UpdateUserTimeSeries implements ShouldQueue
      */
     public function handle (TagsVerifiedByAdmin $event)
     {
+        $user = User::find($event->user_id);
+
+        $ppm = json_decode($user->photos_per_month, true);
+
         $date = Carbon::parse($event->created_at)->format('m-y');
 
-        Redis::hincrby("ppm:user:$event->user_id", $date, 1);
+        if (! is_null($ppm) && array_key_exists($date, $ppm))
+        {
+            $ppm[$date]++;
+        }
+        else
+        {
+            $ppm[$date] = 1;
+        }
+
+        $ppm = json_encode($ppm);
+
+        $user->photos_per_month = $ppm;
+
+        $user->save();
     }
 }

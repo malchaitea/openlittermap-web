@@ -181,9 +181,6 @@ class UsersController extends Controller
         $user->show_name_createdby = $request->show_name_createdby;
         $user->show_username_createdby = $request->show_username_createdby;
 
-        /* Prevent admins or other people from tagging your photos for you */
-        $user->prevent_others_tagging_my_photos = $request->boolean('prevent_others_tagging_my_photos');
-
         $user->save();
     }
 
@@ -242,7 +239,7 @@ class UsersController extends Controller
 
         return [
             'message' => 'success',
-            'value' => $user->items_remaining
+            'value'   => $user->items_remaining
         ];
     }
 

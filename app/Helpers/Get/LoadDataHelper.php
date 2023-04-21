@@ -2,7 +2,6 @@
 
 namespace App\Helpers\Get;
 
-use App\Models\Littercoin;
 use App\Models\Location\City;
 use App\Models\Location\Country;
 use App\Models\Location\State;
@@ -28,7 +27,7 @@ class LoadDataHelper
     public static function getCountries ()
     {
         // first - global metadata
-        $littercoin = Littercoin::count();
+        $littercoin = \DB::table('users')->sum(\DB::raw('littercoin_owed + littercoin_allowance'));
 
         /**
          * Get the countries
@@ -39,18 +38,11 @@ class LoadDataHelper
             4. Automate 'manual_verify => 1'
             5. Eager load leaders with the country model
          */
-        $countries = Country::with([
-            'creator' => function ($q) {
-                $q->select('id', 'name', 'username', 'show_name_createdby', 'show_username_createdby', 'created_at', 'updated_at')
-                  ->where('show_name_createdby', true)
-                  ->orWhere('show_username_createdby', true);
-            },
-            'lastUploader' => function ($q) {
-                $q->select('id', 'name', 'username', 'show_name_createdby', 'show_username_createdby', 'created_at', 'updated_at')
-                    ->where('show_name_createdby', true)
-                    ->orWhere('show_username_createdby', true);
-            }
-        ])
+        $countries = Country::with(['creator' => function ($q) {
+            $q->select('id', 'name', 'username', 'show_name_createdby', 'show_username_createdby', 'created_at', 'updated_at')
+              ->where('show_name_createdby', true)
+              ->orWhere('show_username_createdby', true);
+        }])
         ->where('manual_verify', true)
         ->orderBy('country', 'asc')
         ->get();
@@ -60,7 +52,7 @@ class LoadDataHelper
 
         foreach ($countries as $country)
         {
-            // Get firstUploader (creator) and lastUploader
+            // Get Creator info
             $country = LocationHelper::getCreatorInfo($country);
 
             // Get Leaderboard per country. Should load more and stop when there are 10-max as some users settings may be off.
@@ -80,6 +72,7 @@ class LoadDataHelper
             $total_litter += $country->total_litter_redis;
 
             $country['diffForHumans'] = $country->created_at->diffForHumans();
+            $country['updatedAtDiffForHumans'] = $country->updated_at->diffForHumans();
         }
 
         /**
@@ -122,7 +115,7 @@ class LoadDataHelper
         // level 5, 1M
         else if ($total_litter <= 1000000)
         {
-            $previousXp = 500000; // 250,000
+            $previousXp = 250000; // 250,000
             $nextXp = 1000000; // 500,000
         }
 
@@ -160,44 +153,22 @@ class LoadDataHelper
             ->orWhere('shortcode', $urlText)
             ->first();
 
-        if (!$country) {
-            return [
-                'success' => false,
-                'msg' => 'country not found'
-            ];
-        }
+        if (!$country) return ['success' => false, 'msg' => 'country not found'];
 
-        $states = State::select(
-            'id',
-            'state',
-            'country_id',
-            'created_by',
-            'created_at',
-            'manual_verify',
-            'total_contributors',
-            'updated_at',
-            'user_id_last_uploaded'
-        )
-        ->with([
-            'creator' => function ($q) {
+        $states = State::select('id', 'state', 'country_id', 'created_by', 'created_at', 'manual_verify', 'total_contributors')
+            ->with(['creator' => function ($q) {
                 $q->select('id', 'name', 'username', 'show_name_createdby', 'show_username_createdby')
                     ->where('show_name_createdby', true)
                     ->orWhere('show_username_createdby', true);
-            },
-            'lastUploader' => function ($q) {
-                $q->select('id', 'name', 'username', 'show_name_createdby', 'show_username_createdby', 'created_at', 'updated_at')
-                    ->where('show_name_createdby', true)
-                    ->orWhere('show_username_createdby', true);
-            }
-        ])
-        ->where([
-            'country_id' => $country->id,
-            'manual_verify' => 1,
-            ['total_litter', '>', 0],
-            ['total_contributors', '>', 0]
-        ])
-        ->orderBy('state', 'asc')
-        ->get();
+            }])
+            ->where([
+                'country_id' => $country->id,
+                'manual_verify' => 1,
+                ['total_litter', '>', 0],
+                ['total_contributors', '>', 0]
+            ])
+            ->orderBy('state', 'asc')
+            ->get();
 
         $total_litter = 0;
         $total_photos = 0;
@@ -271,38 +242,20 @@ class LoadDataHelper
          * Instead of loading the photos here on the city model,
          * save photos_per_day string on the city model
          */
-        $cities = City::select(
-            'id',
-            'city',
-            'country_id',
-            'state_id',
-            'created_by',
-            'created_at',
-            'updated_at',
-            'manual_verify',
-            'total_contributors',
-            'user_id_last_uploaded'
-        )
-        ->with([
-            'creator' => function ($q) {
+        $cities = City::select('id', 'city', 'country_id', 'state_id', 'created_by', 'created_at', 'manual_verify', 'total_contributors')
+            ->with(['creator' => function ($q) {
                 $q->select('id', 'name', 'username', 'show_name_createdby', 'show_username_createdby')
                     ->where('show_name_createdby', true)
                     ->orWhere('show_username_createdby', true);
-            },
-            'lastUploader' => function ($q) {
-                $q->select('id', 'name', 'username', 'show_name_createdby', 'show_username_createdby', 'created_at', 'updated_at')
-                    ->where('show_name_createdby', true)
-                    ->orWhere('show_username_createdby', true);
-            }
-        ])
-        ->where([
-            ['state_id', $state->id],
-            ['total_images', '>', 0],
-            ['total_litter', '>', 0],
-            ['total_contributors', '>', 0]
-        ])
-        ->orderBy('city', 'asc')
-        ->get();
+            }])
+            ->where([
+                ['state_id', $state->id],
+                ['total_images', '>', 0],
+                ['total_litter', '>', 0],
+                ['total_contributors', '>', 0]
+            ])
+            ->orderBy('city', 'asc')
+            ->get();
 
         $countryName = $country->country;
         $stateName = $state->state;
@@ -344,37 +297,21 @@ class LoadDataHelper
     protected static function getLeadersFromLeaderboards($leaderboardIds): array
     {
         $users = User::query()
-            ->with(['teams:id,name'])
             ->whereIn('id', array_keys($leaderboardIds))
             ->get();
 
-        return collect($leaderboardIds)
+        $leaders = collect($leaderboardIds)
             ->map(function ($xp, $userId) use ($users) {
-                /** @var User $user */
                 $user = $users->firstWhere('id', $userId);
                 if (!$user) {
                     return null;
                 }
-
-                $showTeamName = $user->active_team && $user->teams
-                        ->where('pivot.team_id', $user->active_team)
-                        ->first(function ($value, $key) {
-                            return $value->pivot->show_name_leaderboards || $value->pivot->show_username_leaderboards;
-                        });
-
-                return [
-                    'name' => $user->show_name ? $user->name : '',
-                    'username' => $user->show_username ? ('@' . $user->username) : '',
-                    'xp' => number_format($xp),
-                    'global_flag' => $user->global_flag,
-                    'social' => !empty($user->social_links) ? $user->social_links : null,
-                    'team' => $showTeamName ? $user->team->name : ''
-                ];
+                $user->xp_redis = $xp;
+                return $user;
             })
-            ->filter(function ($user) {
-                return $user && $user['xp'] > 0;
-            })
-            ->values()
-            ->toArray();
+            ->filter()
+            ->sortByDesc('xp_redis');
+
+        return LocationHelper::getLeaders($leaders);
     }
 }
