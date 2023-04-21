@@ -13,10 +13,7 @@ class APIPhoto extends Photo
 
     protected $table = 'photos';
 
-    protected $appends = [
-        'type',
-        'uploaded'
-    ];
+    protected $appends = ['type'];
 
     /**
      * Append type => web to an image when loaded from web
@@ -26,13 +23,5 @@ class APIPhoto extends Photo
     public function getTypeAttribute () : string
     {
         return 'web';
-    }
-
-    /**
-     * Any images from the backend are already uploaded
-     */
-    public function getUploadedAttribute (): bool
-    {
-        return true;
     }
 }

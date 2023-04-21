@@ -93,7 +93,6 @@ trait FilterPhotosByGeoHashTrait
                     'team' => $team,
                     'picked_up' => $photo->picked_up,
                     'social' => $photo->user->social_links,
-                    'custom_tags' => $photo->customTags->pluck('tag')
                 ]
             ];
         })->toArray();

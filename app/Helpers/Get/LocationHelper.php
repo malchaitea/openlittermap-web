@@ -4,12 +4,12 @@ namespace App\Helpers\Get;
 
 // Used by LoadingDataHelper
 use App\Models\Location\Location;
+use Illuminate\Support\Collection;
 
 trait LocationHelper
 {
     /**
      * Get the name, username for whoever added this Location
-     * or whoever was the last to upload
      *
      * We need to check if their settings are set to public.
      *
@@ -36,23 +36,32 @@ trait LocationHelper
             $location["created_by_name"] = 'Anonymous';
         }
 
-        if ($location->lastUploader)
-        {
-            if ($location->lastUploader->show_name_createdby)
-            {
-                $location["last_uploader_name"] = $location->lastUploader->name;
-            }
-            if ($location->lastUploader->show_username_createdby)
-            {
-                $location["last_uploader_username"] = '@'.$location->lastUploader->username;
-            }
-        }
-
-        if (empty($location['last_uploader_name']) && empty($location['last_uploader_username']))
-        {
-            $location["last_uploader_name"] = 'Anonymous';
-        }
-
         return $location;
+    }
+
+    /**
+     * Get the leaderboard for this location
+     *
+     * @param Collection $leaders
+     * @return array position, name / username, xp
+     */
+    public static function getLeaders (Collection $leaders): array
+    {
+        return $leaders
+            ->take(10)
+            ->filter(function ($leader) {
+                return $leader->xp_redis > 0;
+            })
+            ->map(function ($leader) {
+                return [
+                    'name' => $leader->show_name ? $leader->name : '',
+                    'username' => $leader->show_username ? ('@' . $leader->username) : '',
+                    'xp' => number_format($leader->xp_redis),
+                    'flag' => $leader->global_flag,
+                    'social' => !empty($leader->social_links) ? $leader->social_links : null,
+                ];
+            })
+            ->values()
+            ->toArray();
     }
 }

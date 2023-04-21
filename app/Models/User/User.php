@@ -2,32 +2,27 @@
 
 namespace App\Models\User;
 
-use App\Payment;
-use App\Models\Photo;
-use App\Models\CustomTag;
-use App\Models\Teams\Team;
-use App\Models\Littercoin;
 use App\Models\AI\Annotation;
-use App\Models\Cleanups\Cleanup;
-use App\Models\Cleanups\CleanupUser;
+use App\Models\CustomTag;
+use App\Models\Photo;
+use App\Models\Teams\Team;
+use App\Payment;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Facades\Redis;
 use Laravel\Cashier\Billable;
-use Laravel\Passport\HasApiTokens;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Spatie\Permission\Traits\HasRoles;
+use Laravel\Passport\HasApiTokens;
 use LaravelAndVueJS\Traits\LaravelPermissionToVueJS;
 
-use Illuminate\Support\Facades\Redis;
-use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
-
 /**
- * @property Collection<Team> | array<Team> $teams
+ * @property array<Team> $teams
  * @property Team $team
  * @property int $active_team
  * @property int $xp
@@ -102,15 +97,13 @@ class User extends Authenticatable
         'active_team',
         'link_instagram',
         'verification_required',
-        'prevent_others_tagging_my_photos',
         'littercoin_owed',
         'littercoin_paid',
         'count_correctly_verified',
         'previous_tags',
         'remaining_teams',
         'photos_per_month',
-        'bbox_verification_count',
-        'enable_admin_tagging'
+        'bbox_verification_count'
     ];
 
     /**
@@ -130,19 +123,10 @@ class User extends Authenticatable
         'show_name' => 'boolean',
         'show_username' => 'boolean',
         'verification_required' => 'boolean',
-        'prevent_others_tagging_my_photos' => 'boolean',
         'settings' => 'array'
     ];
 
-    protected $appends = [
-        'total_categories',
-        'total_tags',
-        'total_brands_redis',
-        'picked_up',
-        'user_verification_count',
-        'littercoin_progress',
-        'total_littercoin'
-    ];
+    protected $appends = ['total_categories', 'total_tags', 'total_brands_redis', 'picked_up'];
 
     /**
      * Get total categories attribute
@@ -199,16 +183,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Return the users progress to becoming a verified user
-     *
-     * 0-100
-     */
-    public function getUserVerificationCountAttribute ()
-    {
-        return Redis::hget("user_verification_count", $this->id) ?? 0;
-    }
-
-    /**
      * Get xp_redis attribute
      *
      * @return int user's total XP
@@ -231,26 +205,6 @@ class User extends Authenticatable
     public function getPositionAttribute()
     {
         return User::where('xp', '>', $this->xp ?? 0)->count() + 1;
-    }
-
-    /**
-     * Return the users progress to earning their next Littercoin
-     */
-    public function getLittercoinProgressAttribute ()
-    {
-        return (int) Redis::hget("user:{$this->id}", 'littercoin_progress') ?? 0;
-    }
-
-    /**
-     * Get the total number of Littercoin the user has earned
-     */
-    public function getTotalLittercoinAttribute ()
-    {
-        $count = $this->littercoin_allowance + $this->littercoin_owed;
-
-        $count2 = Littercoin::where('user_id', $this->id)->count();
-
-        return $count + $count2;
     }
 
     /**
@@ -407,20 +361,6 @@ class User extends Authenticatable
     public function isMemberOfTeam(int $teamId): bool
     {
         return $this->teams()->where('team_id', $teamId)->exists();
-    }
-
-    /**
-     * The user can be a part of many Cleanups
-     *
-     * Cleanups pivot table Relationships
-     *
-     * Load extra columns on the pivot table
-     * ->withTimestamps();
-     */
-    public function cleanups (): BelongsToMany
-    {
-        return $this->belongsToMany(Cleanup::class)
-            ->using(CleanupUser::class);
     }
 
     /**
